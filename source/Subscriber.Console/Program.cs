@@ -1,15 +1,19 @@
-﻿using System.Text;
+﻿using System;
+using System.Text;
+using Newtonsoft.Json;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using RabbitMQ.Client.Framing.v0_8;
+using ReferenceData.API;
 
 namespace Subscriber.Console
 {
     class Program
     {
-        static void Main(string[] args)
+        static void Main()
         {
             //var factory = new ConnectionFactory() { HostName = "localhost" };
-            var factory = new ConnectionFactory() { Address = "192.168.1.111" };
+            var factory = new ConnectionFactory { Address = "192.168.1.111" };
             using (var connection = factory.CreateConnection())
             {
                 using (var channel = connection.CreateModel())
@@ -29,11 +33,32 @@ namespace Subscriber.Console
                                       "To exit press CTRL+C");
                     while (true)
                     {
-                        var ea = (BasicDeliverEventArgs)consumer.Queue.Dequeue();
+                        var ea = (BasicDeliverEventArgs) consumer.Queue.Dequeue();
 
                         var body = ea.Body;
-                        var message = Encoding.UTF8.GetString(body);
-                        System.Console.WriteLine(" [x] {0}", message);
+                        var json = Encoding.UTF8.GetString(body);
+
+                        try
+                        {
+                            var list = Serializer.Deserialize(json);
+
+                            foreach (var entity in list)
+                            {
+                                string s = "<entity.Name>";
+                                if (entity.GetType().IsAssignableFrom(typeof (Agency)))
+                                {
+                                    s = "Agency.Name=" + ((Agency) entity).Name;
+                                }
+                                else if (entity.GetType().IsAssignableFrom(typeof (Person)))
+                                {
+                                    s = "Person.Name=" + ((Person) entity).Name;
+                                }
+                                System.Console.WriteLine(" [x] {0}", s);
+                            }
+                        }
+                        catch (Exception)
+                        {
+                        }
                         channel.BasicAck(ea.DeliveryTag, false);
                     }
                 }
